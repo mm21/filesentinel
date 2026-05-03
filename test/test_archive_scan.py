@@ -35,6 +35,7 @@ def test_edit_detected(archive_root: Path):
     changes = a2.scan()
     assert len(changes) == 1
     assert changes[0].change_type == "edit"
+    assert changes[0].new
     assert changes[0].new.rel_path.as_posix() == "a.txt"
 
 
@@ -49,6 +50,8 @@ def test_move_detected(archive_root: Path):
     changes = a2.scan()
     assert len(changes) == 1
     assert changes[0].change_type == "move"
+    assert changes[0].old
+    assert changes[0].new
     assert changes[0].old.path == "a.txt"
     assert changes[0].new.rel_path.as_posix() == "renamed.txt"
 
@@ -64,6 +67,7 @@ def test_delete_detected(archive_root: Path):
     changes = a2.scan()
     assert len(changes) == 1
     assert changes[0].change_type == "delete"
+    assert changes[0].old
     assert changes[0].old.path == "a.txt"
 
 
