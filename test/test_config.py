@@ -8,7 +8,6 @@ from filekeeper import ConfigModel
 def test_defaults_when_missing(tmp_path: Path):
     cfg = ConfigModel.from_yaml(tmp_path / "nope.yaml")
     assert cfg.recovery_pct == 10
-    assert cfg.prefix_tree_depth == 2
 
 
 def test_loads_overrides(tmp_path: Path):
@@ -17,4 +16,3 @@ def test_loads_overrides(tmp_path: Path):
     cfg = ConfigModel.from_yaml(p)
     assert cfg.recovery_pct == 25
     assert cfg.ignore_globs == ["*.tmp"]
-    assert cfg.prefix_tree_depth == 2

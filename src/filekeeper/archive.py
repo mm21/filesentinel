@@ -2,6 +2,8 @@
 Implementation of archive abstraction.
 """
 
+from __future__ import annotations
+
 import logging
 import shutil
 from dataclasses import dataclass, field

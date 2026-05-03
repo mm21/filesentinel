@@ -2,6 +2,8 @@
 General utilities: hashing, par2 redundancy, disk ripping.
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import shutil

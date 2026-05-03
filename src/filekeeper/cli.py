@@ -2,6 +2,8 @@
 CLI implementation: a thin Typer layer over the core framework.
 """
 
+from __future__ import annotations
+
 import logging
 import sys
 from fnmatch import fnmatch

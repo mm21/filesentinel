@@ -2,6 +2,8 @@
 Implementation of file abstraction.
 """
 
+from __future__ import annotations
+
 from functools import cached_property
 from os import stat_result
 from pathlib import Path

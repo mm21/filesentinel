@@ -2,6 +2,8 @@
 Implementation of configuration.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
 from typing import Self
 
@@ -24,11 +26,6 @@ class ConfigModel(BaseModel):
     ignore_globs: list[str] = Field(default_factory=list)
     """
     Additional glob patterns (relative to archive root) to ignore during scan.
-    """
-
-    prefix_tree_depth: int = 2
-    """
-    Depth of the digest-keyed prefix tree under `<manifest>/tree/`.
     """
 
     @classmethod

@@ -2,6 +2,8 @@
 Implementation of file manifest.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 from dataclasses import dataclass
@@ -19,6 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 INDEX_FILENAME = "manifest.yaml"
 TREE_DIRNAME = "tree"
+TREE_DEPTH = 2
 
 type ChangeType = Literal["add", "delete", "move", "edit"]
 
@@ -63,8 +66,8 @@ class PendingChange:
     """
 
     change_type: ChangeType
-    new: "File | None" = None
-    old: "FileModel | None" = None
+    new: File | None = None
+    old: FileModel | None = None
 
 
 class Manifest:
@@ -73,7 +76,7 @@ class Manifest:
     """
 
     __path: Path
-    __archive: "Archive"
+    __archive: Archive
     __model: ManifestModel
     __entries: dict[str, FileModel]
 
@@ -140,10 +143,8 @@ class Manifest:
         The leaf folder name is the full digest, prefixed by `depth` levels of
         2-char buckets (e.g. `tree/aa/bb/aabbccdd...`).
         """
-        depth = self.__archive.config.prefix_tree_depth
-        if len(digest) < depth * 2:
-            raise ValueError(f"digest too short for depth {depth}: {digest}")
-        parts = [digest[i * 2 : (i + 1) * 2] for i in range(depth)]
+        assert len(digest) >= TREE_DEPTH * 2
+        parts = [digest[i * 2 : (i + 1) * 2] for i in range(TREE_DEPTH)]
         return self.tree_root.joinpath(*parts, digest)
 
     def apply(self, changes: Sequence[PendingChange]) -> None:
@@ -159,11 +160,15 @@ class Manifest:
                     self.__entries[ch.new.rel_path.as_posix()] = ch.new.to_model()
                 case "delete":
                     assert ch.old is not None
-                    self.__entries.pop(ch.old.path, None)
+                    del self.__entries[ch.old.path]
                 case "move":
                     assert ch.old is not None and ch.new is not None
-                    self.__entries.pop(ch.old.path, None)
+                    del self.__entries[ch.old.path]
                     self.__entries[ch.new.rel_path.as_posix()] = ch.new.to_model()
                 case "edit":
                     assert ch.old is not None and ch.new is not None
                     self.__entries[ch.new.rel_path.as_posix()] = ch.new.to_model()
+        self.__entries = {
+            fm.path: fm
+            for fm in sorted(self.__entries.values(), key=lambda fm: fm.path)
+        }
