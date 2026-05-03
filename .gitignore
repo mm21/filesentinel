@@ -1,0 +1,5 @@
+__cache__
+.claude
+.venv
+build
+dist
