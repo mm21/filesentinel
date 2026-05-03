@@ -8,7 +8,7 @@ from .conftest import needs_par2
 @needs_par2
 def test_repair_restores_corrupted_file(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     target = archive_root / "sub" / "c.txt"
     original = target.read_bytes()
@@ -32,7 +32,7 @@ def test_repair_restores_corrupted_file(archive_root: Path):
 @needs_par2
 def test_repair_reports_deletes_as_unrepairable(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     (archive_root / "a.txt").unlink()
 

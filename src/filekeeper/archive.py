@@ -131,13 +131,14 @@ class Archive:
             on_disk[file.rel_path.as_posix()] = file
         on_disk = {p: on_disk[p] for p in sorted(on_disk)}
 
-        # first pass to load digests since it may be slow
-        # TODO: find total bytes of files on disk
-        for file in on_disk.values():
-            # TODO: print filename + progress to console, use spinner while loading
-            # - use same line (don't flood console with output per file)
-            # - use bytes of file divided by total bytes to print progress in %
-            file.load_digest()
+        if not fast:
+            # first pass to load digests since it may be slow
+            # TODO: find total bytes of files on disk
+            for file in on_disk.values():
+                # TODO: print filename + progress to console, use spinner while loading
+                # - use same line (don't flood console with output per file)
+                # - use bytes of file divided by total bytes to print progress in %
+                file.load_digest()
 
         entries = self.__manifest.entries
         adds: list[PendingChange] = []
@@ -184,7 +185,7 @@ class Archive:
         result.sort(key=_change_sort_key)
         return result
 
-    def rehash(self, changes: Sequence[PendingChange]) -> None:
+    def apply(self, changes: Sequence[PendingChange]) -> None:
         """
         Apply changes to the manifest and update par2 redundancy data on disk.
         """
@@ -283,7 +284,7 @@ class Archive:
             target.parent.mkdir(parents=True, exist_ok=True)
         rip_disk(src_disk, target)
         f = File(target, self)
-        self.rehash([PendingChange("add", new=f)])
+        self.apply([PendingChange("add", new=f)])
         return f
 
 

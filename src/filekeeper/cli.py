@@ -144,7 +144,7 @@ def list_cmd(
     _console.print(table)
 
 
-# TODO: --commit, -y/--yes, absorb functionality of `rehash` and then delete `rehash`
+# TODO: --apply, -y/--yes, absorb functionality of `rehash` and then delete `rehash`
 @app.command(help="Scan archive and report differences from manifest")
 def scan(
     ctx: typer.Context,
@@ -176,7 +176,7 @@ def rehash(
         return
     if not yes:
         typer.confirm("Proceed with update?", abort=True)
-    archive.rehash(changes)
+    archive.apply(changes)
     _console.print("[green]manifest updated[/green]")
 
 

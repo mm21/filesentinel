@@ -19,7 +19,7 @@ def test_initial_scan_all_adds(archive: Archive):
 
 @needs_par2
 def test_clean_after_rehash(archive: Archive):
-    archive.rehash(archive.scan())
+    archive.apply(archive.scan())
     assert archive.scan() == []
     assert archive.verify() is True
 
@@ -27,7 +27,7 @@ def test_clean_after_rehash(archive: Archive):
 @needs_par2
 def test_edit_detected(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     (archive_root / "a.txt").write_bytes(b"DIFFERENT\n")
 
@@ -42,7 +42,7 @@ def test_edit_detected(archive_root: Path):
 @needs_par2
 def test_move_detected(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     (archive_root / "a.txt").rename(archive_root / "renamed.txt")
 
@@ -59,7 +59,7 @@ def test_move_detected(archive_root: Path):
 @needs_par2
 def test_delete_detected(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     (archive_root / "a.txt").unlink()
 
@@ -74,7 +74,7 @@ def test_delete_detected(archive_root: Path):
 @needs_par2
 def test_fast_mode_uses_size_mtime(archive_root: Path):
     a = Archive(archive_root)
-    a.rehash(a.scan())
+    a.apply(a.scan())
 
     target = archive_root / "a.txt"
     # bump mtime without changing content
