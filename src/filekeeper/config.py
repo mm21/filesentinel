@@ -2,19 +2,44 @@
 Implementation of configuration.
 """
 
+from pathlib import Path
 from typing import Self
 
-from pydantic import BaseModel
+import yaml
+from pydantic import BaseModel, Field
 
 
 class ConfigModel(BaseModel):
+    """
+    User-editable configuration loaded from `config.yaml`.
+    """
 
     recovery_pct: int = 10
     """
     Redundancy target size in percent.
 
-    Maps to par2 -r option.
+    Maps to par2 `-r` option.
+    """
+
+    ignore_globs: list[str] = Field(default_factory=list)
+    """
+    Additional glob patterns (relative to archive root) to ignore during scan.
+    """
+
+    prefix_tree_depth: int = 2
+    """
+    Depth of the digest-keyed prefix tree under `<manifest>/tree/`.
     """
 
     @classmethod
-    def from_yaml(cls, Path) -> Self: ...
+    def from_yaml(cls, path: Path) -> Self:
+        """
+        Load config from a YAML file.
+
+        Returns defaults if the file is missing.
+        """
+        if not path.exists():
+            return cls()
+        with path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        return cls.model_validate(data)
