@@ -144,12 +144,13 @@ def list_cmd(
     _console.print(table)
 
 
+# TODO: --commit, -y/--yes, absorb functionality of `rehash` and then delete `rehash`
 @app.command(help="Scan archive and report differences from manifest")
 def scan(
     ctx: typer.Context,
-    fast: bool = typer.Option(False, "--fast", help="Skip rehash if size+mtime match."),
+    fast: bool = typer.Option(False, "--fast", help="Skip rehash if size+mtime match"),
     verify: bool = typer.Option(
-        False, "--verify", help="Exit with error code if archive differs from manifest."
+        False, "--verify", help="Exit with error code if archive differs from manifest"
     ),
     paths: list[str] = typer.Argument(None),
 ):

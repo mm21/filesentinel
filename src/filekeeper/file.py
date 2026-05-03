@@ -22,9 +22,10 @@ class File:
     """
 
     __path: Path
-    __archive: "Archive"
+    __archive: Archive
+    __digest: str | None = None
 
-    def __init__(self, path: Path, archive: "Archive"):
+    def __init__(self, path: Path, archive: Archive):
         self.__path = path
         self.__archive = archive
 
@@ -69,7 +70,17 @@ class File:
         """
         SHA-256 digest of file as hex.
         """
-        return sha256_file(self.__path)
+        if not self.__digest:
+            self.load_digest()
+        assert self.__digest
+        return self.__digest
+
+    def load_digest(self):
+        """
+        Read SHA-256 digest from file.
+        """
+        if self.__digest is None:
+            self.__digest = sha256_file(self.__path)
 
     def to_model(self) -> "FileModel":
         from .manifest import FileModel

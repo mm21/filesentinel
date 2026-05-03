@@ -121,33 +121,42 @@ class Archive:
 
     def scan(self, *, fast: bool = False) -> list[PendingChange]:
         """
-        Walk the archive and return changes vs.
-
-        the loaded manifest.
+        Walk the archive and return changes vs the loaded manifest.
         """
+        # TODO: print current folder to console
+        # - use same line (don't flood console with output per folder)
         on_disk: dict[str, File] = {}
         for path in self.walk():
-            f = File(path, self)
-            on_disk[f.rel_path.as_posix()] = f
+            file = File(path, self)
+            on_disk[file.rel_path.as_posix()] = file
+        on_disk = {p: on_disk[p] for p in sorted(on_disk)}
+
+        # first pass to load digests since it may be slow
+        # TODO: find total bytes of files on disk
+        for file in on_disk.values():
+            # TODO: print filename + progress to console, use spinner while loading
+            # - use same line (don't flood console with output per file)
+            # - use bytes of file divided by total bytes to print progress in %
+            file.load_digest()
 
         entries = self.__manifest.entries
         adds: list[PendingChange] = []
         deletes: list[PendingChange] = []
         edits: list[PendingChange] = []
 
-        for rel, f in on_disk.items():
+        for rel, file in on_disk.items():
             old = entries.get(rel)
             if old is None:
-                adds.append(PendingChange("add", new=f))
+                adds.append(PendingChange("add", new=file))
                 continue
             if fast:
-                if f.size == old.size and f.mtime == old.mtime:
+                if file.size == old.size and file.mtime == old.mtime:
                     continue
-                edits.append(PendingChange("edit", new=f, old=old))
+                edits.append(PendingChange("edit", new=file, old=old))
                 continue
-            if f.digest == old.digest:
+            if file.digest == old.digest:
                 continue
-            edits.append(PendingChange("edit", new=f, old=old))
+            edits.append(PendingChange("edit", new=file, old=old))
 
         for rel, old in entries.items():
             if rel not in on_disk:

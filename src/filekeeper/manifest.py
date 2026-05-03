@@ -168,7 +168,4 @@ class Manifest:
                 case "edit":
                     assert ch.old is not None and ch.new is not None
                     self.__entries[ch.new.rel_path.as_posix()] = ch.new.to_model()
-        self.__entries = {
-            fm.path: fm
-            for fm in sorted(self.__entries.values(), key=lambda fm: fm.path)
-        }
+        self.__entries = {p: self.__entries[p] for p in sorted(self.__entries)}
