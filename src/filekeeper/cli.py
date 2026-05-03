@@ -54,13 +54,13 @@ def main(
         file_okay=False,
         dir_okay=True,
         resolve_path=True,
-        help="Path to archive folder root.",
+        help="Path to archive folder root",
     ),
     manifest: Optional[Path] = typer.Option(
-        None, "--manifest", "-m", help="Path to manifest folder."
+        None, "--manifest", "-m", help="Path to manifest folder"
     ),
     config: Optional[Path] = typer.Option(
-        None, "--config", "-c", help="Path to config YAML file."
+        None, "--config", "-c", help="Path to config YAML file"
     ),
 ):
     """
@@ -118,15 +118,12 @@ def _render_changes(changes: list[PendingChange]) -> None:
     _console.print(table)
 
 
-@app.command("list")
+@app.command("list", help="List files in the manifest (no scan)")
 def list_cmd(
     ctx: typer.Context,
     depth: Optional[int] = typer.Option(None, "--depth", "-d"),
     paths: list[str] = typer.Argument(None),
 ):
-    """
-    List files in the manifest (no scan)
-    """
     archive: Archive = ctx.obj
     entries = archive.manifest.entries
     paths = paths or []
@@ -145,7 +142,7 @@ def list_cmd(
     _console.print(table)
 
 
-@app.command()
+@app.command(help="Scan archive and report differences from manifest")
 def scan(
     ctx: typer.Context,
     fast: bool = typer.Option(False, "--fast", help="Skip rehash if size+mtime match."),
@@ -154,9 +151,6 @@ def scan(
     ),
     paths: list[str] = typer.Argument(None),
 ):
-    """
-    Scan archive and report differences from manifest.
-    """
     archive: Archive = ctx.obj
     changes = archive.scan(fast=fast)
     if paths:
@@ -166,15 +160,12 @@ def scan(
         sys.exit(1)
 
 
-@app.command()
+@app.command(help="Scan, then update manifest and par2 redundancy")
 def rehash(
     ctx: typer.Context,
     fast: bool = typer.Option(False, "--fast"),
     yes: bool = typer.Option(False, "-y", "--yes", help="Skip confirmation."),
 ):
-    """
-    Scan, then update manifest and par2 redundancy.
-    """
     archive: Archive = ctx.obj
     changes = archive.scan(fast=fast)
     _render_changes(changes)
@@ -186,11 +177,8 @@ def rehash(
     _console.print("[green]manifest updated[/green]")
 
 
-@app.command()
+@app.command(help="Repair corrupted (edited) files using par2 redundancy data")
 def repair(ctx: typer.Context):
-    """
-    Repair corrupted (edited) files using par2 redundancy data.
-    """
     archive: Archive = ctx.obj
     changes = archive.scan()
     _render_changes(changes)
@@ -207,7 +195,7 @@ def repair(ctx: typer.Context):
         sys.exit(1)
 
 
-@app.command()
+@app.command(help="Rip a disk to .iso and add it to the archive")
 def rip(
     ctx: typer.Context,
     src: Path = typer.Argument(..., help="Source disk device."),
@@ -218,9 +206,6 @@ def rip(
         False, "--parents", help="Create parent folders if missing."
     ),
 ):
-    """
-    Rip a disk to .iso and add it to the archive.
-    """
     archive: Archive = ctx.obj
     f = archive.rip_disk(src, dest, create_parents=parents)
     _console.print(f"[green]ripped[/green] {f.rel_path}")
