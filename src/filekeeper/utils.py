@@ -97,6 +97,9 @@ def rip_disk(src_disk: Path, dest_iso: Path) -> None:
     """
     Rip a disk to .iso file using `ddrescue`.
     """
+    # TODO: 2 steps, run second if first fails:
+    # ddrescue -b 2048 -n /dev/sr0 disc.iso disc.map
+    # ddrescue -b 2048 -d -r 3 /dev/sr0 disc.iso disc.map
     binary = shutil.which("ddrescue")
     if binary is None:
         raise RuntimeError("ddrescue binary not found on PATH")
