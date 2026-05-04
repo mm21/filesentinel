@@ -18,7 +18,7 @@ def test_initial_scan_all_adds(archive: Archive):
 
 
 @needs_par2
-def test_clean_after_rehash(archive: Archive):
+def test_clean_after_apply(archive: Archive):
     archive.apply(archive.scan())
     assert archive.scan() == []
     assert archive.verify() is True

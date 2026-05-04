@@ -12,12 +12,12 @@ from typing import Optional
 
 import rich.traceback
 import typer
-from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
 
 from .archive import Archive
 from .manifest import PendingChange
+from .utils import console
 
 rich.traceback.install(show_locals=True)
 
@@ -27,7 +27,7 @@ logging.basicConfig(
     handlers=[
         RichHandler(
             rich_tracebacks=True,
-            console=Console(highlight=False),
+            console=console,
             show_level=True,
             show_time=True,
             show_path=False,
@@ -35,14 +35,13 @@ logging.basicConfig(
     ],
 )
 
-_LOGGER = logging.getLogger(__name__)
-_console = Console(highlight=False)
-
 app = typer.Typer(
     rich_markup_mode="rich",
     no_args_is_help=True,
     add_completion=False,
 )
+
+_logger = logging.getLogger(__name__)
 
 
 @app.callback()
@@ -87,7 +86,7 @@ def _format_size(n: int) -> str:
 
 def _render_changes(changes: list[PendingChange]) -> None:
     if not changes:
-        _console.print("[green]archive matches manifest[/green]")
+        console.print("[green]archive matches manifest[/green]")
         return
     table = Table(title=f"{len(changes)} pending change(s)")
     table.add_column("change")
@@ -117,7 +116,7 @@ def _render_changes(changes: list[PendingChange]) -> None:
                     ch.new.rel_path.as_posix(),
                     f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
                 )
-    _console.print(table)
+    console.print(table)
 
 
 @app.command("list", help="List files in the manifest (no scan)")
@@ -141,16 +140,23 @@ def list_cmd(
             continue
         fm = entries[rel]
         table.add_row(rel, _format_size(fm.size), fm.digest[:12])
-    _console.print(table)
+    console.print(table)
 
 
-# TODO: --apply, -y/--yes, absorb functionality of `rehash` and then delete `rehash`
 @app.command(help="Scan archive and report differences from manifest")
 def scan(
     ctx: typer.Context,
-    fast: bool = typer.Option(False, "--fast", help="Skip rehash if size+mtime match"),
+    fast: bool = typer.Option(False, "--fast", help="Skip hashing if size+mtime match"),
     verify: bool = typer.Option(
         False, "--verify", help="Exit with error code if archive differs from manifest"
+    ),
+    apply: bool = typer.Option(
+        False,
+        "--apply",
+        help="Update manifest and par2 redundancy with detected changes",
+    ),
+    yes: bool = typer.Option(
+        False, "-y", "--yes", help="Skip confirmation when applying."
     ),
     paths: list[str] = typer.Argument(None),
 ):
@@ -161,23 +167,11 @@ def scan(
     _render_changes(changes)
     if verify and changes:
         sys.exit(1)
-
-
-@app.command(help="Scan, then update manifest and par2 redundancy")
-def rehash(
-    ctx: typer.Context,
-    fast: bool = typer.Option(False, "--fast"),
-    yes: bool = typer.Option(False, "-y", "--yes", help="Skip confirmation."),
-):
-    archive: Archive = ctx.obj
-    changes = archive.scan(fast=fast)
-    _render_changes(changes)
-    if not changes:
-        return
-    if not yes:
-        typer.confirm("Proceed with update?", abort=True)
-    archive.apply(changes)
-    _console.print("[green]manifest updated[/green]")
+    if apply and changes:
+        if not yes:
+            typer.confirm("Proceed with update?", abort=True)
+        archive.apply(changes)
+        console.print("[green]manifest updated[/green]")
 
 
 @app.command(help="Repair corrupted (edited) files using par2 redundancy data")
@@ -189,11 +183,11 @@ def repair(ctx: typer.Context):
         return
     report = archive.repair(changes)
     for p in report.repaired:
-        _LOGGER.info("repaired %s", p)
+        _logger.info("repaired %s", p)
     for p in report.extraneous:
-        _LOGGER.warning("extraneous %s", p)
+        _logger.warning("extraneous %s", p)
     for p in report.unrepairable:
-        _LOGGER.error("unrepairable %s", p)
+        _logger.error("unrepairable %s", p)
     if not report.ok:
         sys.exit(1)
 
@@ -211,7 +205,7 @@ def rip(
 ):
     archive: Archive = ctx.obj
     f = archive.rip_disk(src, dest, create_parents=parents)
-    _console.print(f"[green]ripped[/green] {f.rel_path}")
+    console.print(f"[green]ripped[/green] {f.rel_path}")
 
 
 def _change_path(ch: PendingChange) -> str:

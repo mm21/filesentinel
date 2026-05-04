@@ -4,7 +4,6 @@ Implementation of file manifest.
 
 from __future__ import annotations
 
-import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,7 +16,6 @@ if TYPE_CHECKING:
     from .archive import Archive
     from .file import File
 
-_LOGGER = logging.getLogger(__name__)
 
 INDEX_FILENAME = "manifest.yaml"
 TREE_DIRNAME = "tree"

@@ -11,15 +11,25 @@ from fnmatch import fnmatch
 from pathlib import Path
 from typing import Iterator, Sequence
 
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    SpinnerColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TransferSpeedColumn,
+)
+
 from .config import ConfigModel
 from .file import File
 from .manifest import Manifest, PendingChange
-from .utils import par2_create, par2_repair, rip_disk
-
-_LOGGER = logging.getLogger(__name__)
+from .utils import console, par2_create, par2_repair, rip_disk
 
 DEFAULT_MANIFEST_DIRNAME = ".filekeeper"
 DEFAULT_CONFIG_FILENAME = "config.yaml"
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -110,6 +120,8 @@ class Archive:
         """
         manifest_inside_root = self.__manifest_path.is_relative_to(self.__root)
         for dirpath, dirnames, filenames in self.__root.walk():
+            dirnames.sort()
+            filenames.sort()
             if manifest_inside_root and dirpath == self.__root:
                 dirnames[:] = [d for d in dirnames if d != DEFAULT_MANIFEST_DIRNAME]
             for name in filenames:
@@ -123,22 +135,41 @@ class Archive:
         """
         Walk the archive and return changes vs the loaded manifest.
         """
-        # TODO: print current folder to console
-        # - use same line (don't flood console with output per folder)
         on_disk: dict[str, File] = {}
-        for path in self.walk():
-            file = File(path, self)
-            on_disk[file.rel_path.as_posix()] = file
+        with console.status("[cyan]scanning[/cyan]") as status:
+            last_dir: Path | None = None
+            for path in self.walk():
+                parent = path.parent
+                if parent != last_dir:
+                    rel_dir = (
+                        parent.relative_to(self.__root)
+                        if parent != self.__root
+                        else Path(".")
+                    )
+                    status.update(f"[cyan]scanning[/cyan] {rel_dir}")
+                    last_dir = parent
+                file = File(path, self)
+                on_disk[file.rel_path.as_posix()] = file
         on_disk = {p: on_disk[p] for p in sorted(on_disk)}
 
         if not fast:
             # first pass to load digests since it may be slow
-            # TODO: find total bytes of files on disk
-            for file in on_disk.values():
-                # TODO: print filename + progress to console, use spinner while loading
-                # - use same line (don't flood console with output per file)
-                # - use bytes of file divided by total bytes to print progress in %
-                file.load_digest()
+            total_bytes = sum(f.size for f in on_disk.values())
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                DownloadColumn(),
+                TimeElapsedColumn(),
+                TransferSpeedColumn(),
+                console=console,
+                transient=True,
+            ) as progress:
+                task = progress.add_task("hashing", total=total_bytes)
+                for file in on_disk.values():
+                    progress.update(task, description=f"hashing {file.rel_path}")
+                    file.load_digest()
+                    progress.advance(task, file.size)
 
         entries = self.__manifest.entries
         adds: list[PendingChange] = []
@@ -210,7 +241,7 @@ class Archive:
                     assert ch.new is not None
                     par2_dir = self.__manifest.map_digest(ch.new.digest)
                     if not par2_dir.exists():
-                        _LOGGER.info("par2 create %s", ch.new.rel_path)
+                        _logger.info("par2 create %s", ch.new.rel_path)
                         par2_create(
                             ch.new.path,
                             par2_dir,
@@ -225,7 +256,7 @@ class Archive:
             if ch.old is not None and ch.old.digest not in live_digests:
                 old_dir = self.__manifest.map_digest(ch.old.digest)
                 if old_dir.exists():
-                    _LOGGER.info("par2 drop %s", ch.old.digest[:12])
+                    _logger.info("par2 drop %s", ch.old.digest[:12])
                     shutil.rmtree(old_dir)
 
         self.__manifest.save()

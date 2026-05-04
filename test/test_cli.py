@@ -12,7 +12,7 @@ runner = CliRunner()
 @needs_par2
 def test_e2e_corrupt_and_repair(archive_root: Path):
     # initial population
-    r = runner.invoke(app, ["-r", str(archive_root), "rehash", "-y"])
+    r = runner.invoke(app, ["-r", str(archive_root), "scan", "--apply", "-y"])
     assert r.exit_code == 0, r.output
     assert (archive_root / ".filekeeper" / "manifest.yaml").exists()
 
