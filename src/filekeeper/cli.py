@@ -127,19 +127,24 @@ def list_cmd(
 ):
     archive: Archive = ctx.obj
     entries = archive.manifest.entries
+    entry_names = list(entries.keys())
     paths = paths or []
 
     table = Table(title=f"{len(entries)} file(s) in manifest")
     table.add_column("path")
     table.add_column("size", justify="right")
     table.add_column("digest")
-    for rel in sorted(entries):
+
+    for rel, fm in entries.items():
         if not _filter_paths(rel, paths):
             continue
         if depth is not None and rel.count("/") > depth:
             continue
-        fm = entries[rel]
-        table.add_row(rel, _format_size(fm.size), fm.digest[:12])
+        end_section = entry_names[-1] == rel
+        table.add_row(
+            rel, _format_size(fm.size), fm.digest[:12], end_section=end_section
+        )
+    table.add_row("total", _format_size(sum(fm.size for fm in entries.values())), "-")
     console.print(table)
 
 
