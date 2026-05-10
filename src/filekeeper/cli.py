@@ -44,19 +44,19 @@ app = typer.Typer(
 _logger = logging.getLogger(__name__)
 
 
+ROOT_ARG = typer.Argument(
+    ...,
+    exists=True,
+    file_okay=False,
+    dir_okay=True,
+    resolve_path=True,
+    help="Path to archive folder root",
+)
+
+
 @app.callback()
 def main(
     ctx: typer.Context,
-    root: Path = typer.Option(
-        ...,
-        "--root",
-        "-r",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        resolve_path=True,
-        help="Path to archive folder root",
-    ),
     manifest: Optional[Path] = typer.Option(
         None, "--manifest", "-m", help="Path to manifest folder"
     ),
@@ -67,7 +67,7 @@ def main(
     """
     FileKeeper: File archiving utility
     """
-    ctx.obj = Archive(root, manifest_path=manifest, config_path=config)
+    ctx.obj = {"manifest": manifest, "config": config}
 
 
 def _filter_paths(rel: str, paths: list[str]) -> bool:
@@ -122,10 +122,11 @@ def _render_changes(changes: list[PendingChange]) -> None:
 @app.command("list", help="List files in the manifest (no scan)")
 def list_cmd(
     ctx: typer.Context,
+    root: Path = ROOT_ARG,
     depth: Optional[int] = typer.Option(None, "--depth", "-d"),
     paths: list[str] = typer.Argument(None),
 ):
-    archive: Archive = ctx.obj
+    archive = _get_archive(ctx, root)
     entries = archive.manifest.entries
     entry_names = list(entries.keys())
     paths = paths or []
@@ -151,6 +152,7 @@ def list_cmd(
 @app.command(help="Scan archive and report differences from manifest")
 def scan(
     ctx: typer.Context,
+    root: Path = ROOT_ARG,
     fast: bool = typer.Option(False, "--fast", help="Skip hashing if size+mtime match"),
     verify: bool = typer.Option(
         False, "--verify", help="Exit with error code if archive differs from manifest"
@@ -165,7 +167,7 @@ def scan(
     ),
     paths: list[str] = typer.Argument(None),
 ):
-    archive: Archive = ctx.obj
+    archive = _get_archive(ctx, root)
     changes = archive.scan(fast=fast)
     if paths:
         changes = [c for c in changes if _filter_paths(_change_path(c), paths)]
@@ -180,8 +182,8 @@ def scan(
 
 
 @app.command(help="Repair corrupted (edited) files using par2 redundancy data")
-def repair(ctx: typer.Context):
-    archive: Archive = ctx.obj
+def repair(ctx: typer.Context, root: Path = ROOT_ARG):
+    archive = _get_archive(ctx, root)
     changes = archive.scan()
     _render_changes(changes)
     if not changes:
@@ -200,6 +202,7 @@ def repair(ctx: typer.Context):
 @app.command(help="Rip a disk to .iso and add it to the archive")
 def rip(
     ctx: typer.Context,
+    root: Path = ROOT_ARG,
     src: Path = typer.Argument(..., help="Source disk device."),
     dest: Path = typer.Argument(
         ..., help="Destination .iso path relative to archive root."
@@ -208,9 +211,14 @@ def rip(
         False, "--parents", help="Create parent folders if missing."
     ),
 ):
-    archive: Archive = ctx.obj
+    archive = _get_archive(ctx, root)
     f = archive.rip_disk(src, dest, create_parents=parents)
     console.print(f"[green]ripped[/green] {f.rel_path}")
+
+
+def _get_archive(ctx: typer.Context, root: Path) -> Archive:
+    opts = ctx.obj
+    return Archive(root, manifest_path=opts["manifest"], config_path=opts["config"])
 
 
 def _change_path(ch: PendingChange) -> str:
