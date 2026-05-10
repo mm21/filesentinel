@@ -70,55 +70,6 @@ def main(
     ctx.obj = {"manifest": manifest, "config": config}
 
 
-def _filter_paths(rel: str, paths: list[str]) -> bool:
-    if not paths:
-        return True
-    return any(fnmatch(rel, p) for p in paths)
-
-
-def _format_size(n: int) -> str:
-    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
-        n /= 1024  # type: ignore[assignment]
-    return f"{n:.1f} PiB"
-
-
-def _render_changes(changes: list[PendingChange]) -> None:
-    if not changes:
-        console.print("[green]archive matches manifest[/green]")
-        return
-    table = Table(title=f"{len(changes)} pending change(s)")
-    table.add_column("change")
-    table.add_column("path")
-    table.add_column("digest")
-    for ch in changes:
-        match ch.change_type:
-            case "add":
-                assert ch.new is not None
-                table.add_row(
-                    "[green]add[/green]", ch.new.rel_path.as_posix(), ch.new.digest[:12]
-                )
-            case "delete":
-                assert ch.old is not None
-                table.add_row("[red]delete[/red]", ch.old.path, ch.old.digest[:12])
-            case "move":
-                assert ch.old is not None and ch.new is not None
-                table.add_row(
-                    "[yellow]move[/yellow]",
-                    f"{ch.old.path} -> {ch.new.rel_path.as_posix()}",
-                    ch.new.digest[:12],
-                )
-            case "edit":
-                assert ch.old is not None and ch.new is not None
-                table.add_row(
-                    "[magenta]edit[/magenta]",
-                    ch.new.rel_path.as_posix(),
-                    f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
-                )
-    console.print(table)
-
-
 @app.command("list", help="List files in the manifest (no scan)")
 def list_cmd(
     ctx: typer.Context,
@@ -226,6 +177,55 @@ def _change_path(ch: PendingChange) -> str:
         return ch.new.rel_path.as_posix()
     assert ch.old is not None
     return ch.old.path
+
+
+def _filter_paths(rel: str, paths: list[str]) -> bool:
+    if not paths:
+        return True
+    return any(fnmatch(rel, p) for p in paths)
+
+
+def _format_size(n: int) -> str:
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n /= 1024  # type: ignore[assignment]
+    return f"{n:.1f} PiB"
+
+
+def _render_changes(changes: list[PendingChange]) -> None:
+    if not changes:
+        console.print("[green]archive matches manifest[/green]")
+        return
+    table = Table(title=f"{len(changes)} pending change(s)")
+    table.add_column("change")
+    table.add_column("path")
+    table.add_column("digest")
+    for ch in changes:
+        match ch.change_type:
+            case "add":
+                assert ch.new is not None
+                table.add_row(
+                    "[green]add[/green]", ch.new.rel_path.as_posix(), ch.new.digest[:12]
+                )
+            case "delete":
+                assert ch.old is not None
+                table.add_row("[red]delete[/red]", ch.old.path, ch.old.digest[:12])
+            case "move":
+                assert ch.old is not None and ch.new is not None
+                table.add_row(
+                    "[yellow]move[/yellow]",
+                    f"{ch.old.path} -> {ch.new.rel_path.as_posix()}",
+                    ch.new.digest[:12],
+                )
+            case "edit":
+                assert ch.old is not None and ch.new is not None
+                table.add_row(
+                    "[magenta]edit[/magenta]",
+                    ch.new.rel_path.as_posix(),
+                    f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
+                )
+    console.print(table)
 
 
 if __name__ == "__main__":
