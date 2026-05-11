@@ -35,6 +35,8 @@ from .utils import (
 
 DEFAULT_MANIFEST_DIRNAME = ".filekeeper"
 DEFAULT_CONFIG_FILENAME = "config.yaml"
+CHANGE_ORDER = {"add": 0, "delete": 1, "move": 2, "edit": 3}
+PAR2_CHANGE_ORDER = {"add": 0, "delete": 1, "edit": 2}
 
 _logger = logging.getLogger(__name__)
 
@@ -247,6 +249,7 @@ class Archive:
 
         # par2 churn
         for ch in changes:
+            # TODO: show progress spinner like Archive.scan()
             match ch.change_type:
                 case "add" | "edit":
                     assert ch.new is not None
@@ -273,18 +276,6 @@ class Archive:
                 self.__manifest.drop_par2_set(ch.old.digest)
 
         self.__manifest.save()
-
-    def __record_par2_set(self, content_digest: str) -> None:
-        """
-        Hash every file in the par2 dir for `content_digest` and record the set in the
-        manifest.
-        """
-        par2_dir = self.__manifest.map_digest(content_digest)
-        files = [
-            Par2FileModel(name=p.name, digest=sha256_file(p))
-            for p in iter_par2_files(par2_dir)
-        ]
-        self.__manifest.set_par2_files(content_digest, files)
 
     def repair(self, changes: Sequence[PendingChange]) -> RepairReport:
         """
@@ -344,39 +335,6 @@ class Archive:
             seen.add(fm.digest)
             changes.extend(self.__scan_par2_dir(fm.digest))
         changes.sort(key=_par2_change_sort_key)
-        return changes
-
-    def __scan_par2_dir(self, content_digest: str) -> list[Par2Change]:
-        par2_dir = self.__manifest.map_digest(content_digest)
-        recorded = self.__manifest.par2_sets.get(content_digest, {})
-        on_disk: dict[str, Par2FileModel] = {}
-        if par2_dir.exists():
-            for p in iter_par2_files(par2_dir):
-                on_disk[p.name] = Par2FileModel(name=p.name, digest=sha256_file(p))
-        changes: list[Par2Change] = []
-        for name, pf in on_disk.items():
-            old = recorded.get(name)
-            if old is None:
-                changes.append(
-                    Par2Change("add", content_digest=content_digest, name=name, new=pf)
-                )
-            elif old.digest != pf.digest:
-                changes.append(
-                    Par2Change(
-                        "edit",
-                        content_digest=content_digest,
-                        name=name,
-                        new=pf,
-                        old=old,
-                    )
-                )
-        for name, old in recorded.items():
-            if name not in on_disk:
-                changes.append(
-                    Par2Change(
-                        "delete", content_digest=content_digest, name=name, old=old
-                    )
-                )
         return changes
 
     def apply_par2(self, changes: Sequence[Par2Change]) -> None:
@@ -439,9 +397,50 @@ class Archive:
         self.apply([PendingChange("add", new=f)])
         return f
 
+    def __record_par2_set(self, content_digest: str) -> None:
+        """
+        Hash every file in the par2 dir for `content_digest` and record the set in the
+        manifest.
+        """
+        par2_dir = self.__manifest.map_digest(content_digest)
+        files = [
+            Par2FileModel(name=p.name, digest=sha256_file(p))
+            for p in iter_par2_files(par2_dir)
+        ]
+        self.__manifest.set_par2_files(content_digest, files)
 
-_CHANGE_ORDER = {"add": 0, "delete": 1, "move": 2, "edit": 3}
-_PAR2_CHANGE_ORDER = {"add": 0, "delete": 1, "edit": 2}
+    def __scan_par2_dir(self, content_digest: str) -> list[Par2Change]:
+        par2_dir = self.__manifest.map_digest(content_digest)
+        recorded = self.__manifest.par2_sets.get(content_digest, {})
+        on_disk: dict[str, Par2FileModel] = {}
+        if par2_dir.exists():
+            for p in iter_par2_files(par2_dir):
+                on_disk[p.name] = Par2FileModel(name=p.name, digest=sha256_file(p))
+        changes: list[Par2Change] = []
+        for name, pf in on_disk.items():
+            old = recorded.get(name)
+            if old is None:
+                changes.append(
+                    Par2Change("add", content_digest=content_digest, name=name, new=pf)
+                )
+            elif old.digest != pf.digest:
+                changes.append(
+                    Par2Change(
+                        "edit",
+                        content_digest=content_digest,
+                        name=name,
+                        new=pf,
+                        old=old,
+                    )
+                )
+        for name, old in recorded.items():
+            if name not in on_disk:
+                changes.append(
+                    Par2Change(
+                        "delete", content_digest=content_digest, name=name, old=old
+                    )
+                )
+        return changes
 
 
 def _change_sort_key(ch: PendingChange) -> tuple[int, str]:
@@ -450,8 +449,8 @@ def _change_sort_key(ch: PendingChange) -> tuple[int, str]:
     else:
         assert ch.old is not None
         path = ch.old.path
-    return (_CHANGE_ORDER[ch.change_type], path)
+    return (CHANGE_ORDER[ch.change_type], path)
 
 
 def _par2_change_sort_key(ch: Par2Change) -> tuple[int, str, str]:
-    return (_PAR2_CHANGE_ORDER[ch.change_type], ch.content_digest, ch.name)
+    return (PAR2_CHANGE_ORDER[ch.change_type], ch.content_digest, ch.name)
