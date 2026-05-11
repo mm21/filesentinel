@@ -24,7 +24,14 @@ from rich.progress import (
 from .config import ConfigModel
 from .file import File
 from .manifest import Manifest, PendingChange
-from .utils import console, par2_create, par2_repair, rip_disk
+from .utils import (
+    console,
+    par2_create,
+    par2_repair,
+    rip_disk,
+    verify_sha256_sidecars,
+    write_sha256_sidecars,
+)
 
 DEFAULT_MANIFEST_DIRNAME = ".filekeeper"
 DEFAULT_CONFIG_FILENAME = "config.yaml"
@@ -56,6 +63,19 @@ class RepairReport:
     @property
     def ok(self) -> bool:
         return not self.unrepairable
+
+
+@dataclass
+class Par2IntegrityReport:
+    """
+    Outcome of verifying the SHA-256 sidecars for par2 redundancy data.
+    """
+
+    problems: list[str] = field(default_factory=list)
+
+    @property
+    def ok(self) -> bool:
+        return not self.problems
 
 
 class Archive:
@@ -251,6 +271,7 @@ class Archive:
                             par2_dir,
                             recovery_pct=self.__config.recovery_pct,
                         )
+                    write_sha256_sidecars(par2_dir)
                 case "delete":
                     pass
                 case "move":
@@ -280,6 +301,16 @@ class Archive:
                     ok = par2_repair(ch.new.path, par2_dir)
                     if ok:
                         report.repaired.append(ch.new.rel_path.as_posix())
+                        # par2 repair with -p purges the par2 set; rebuild it
+                        # along with sha256 sidecars
+                        if par2_dir.exists():
+                            shutil.rmtree(par2_dir)
+                        par2_create(
+                            ch.new.path,
+                            par2_dir,
+                            recovery_pct=self.__config.recovery_pct,
+                        )
+                        write_sha256_sidecars(par2_dir)
                     else:
                         report.unrepairable.append(ch.new.rel_path.as_posix())
                 case "delete":
@@ -294,9 +325,25 @@ class Archive:
 
     def verify(self) -> bool:
         """
-        Return True iff a full scan (no fast-path) yields no pending changes.
+        Return True iff a full scan (no fast-path) yields no pending changes and all
+        par2 redundancy sidecars match.
         """
-        return not self.scan()
+        return not self.scan() and self.verify_par2_integrity().ok
+
+    def verify_par2_integrity(self) -> Par2IntegrityReport:
+        """
+        Verify the SHA-256 sidecars of par2 redundancy data for every digest currently
+        referenced by the manifest.
+        """
+        report = Par2IntegrityReport()
+        seen: set[str] = set()
+        for fm in self.__manifest.entries.values():
+            if fm.digest in seen:
+                continue
+            seen.add(fm.digest)
+            par2_dir = self.__manifest.map_digest(fm.digest)
+            report.problems.extend(verify_sha256_sidecars(par2_dir))
+        return report
 
     def rip_disk(
         self,

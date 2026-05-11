@@ -2,7 +2,7 @@
 FileKeeper: A file archiving utility.
 """
 
-from .archive import Archive, RepairReport
+from .archive import Archive, Par2IntegrityReport, RepairReport
 from .config import ConfigModel
 from .file import File
 from .manifest import (
@@ -21,6 +21,7 @@ __all__ = [
     "FileModel",
     "Manifest",
     "ManifestModel",
+    "Par2IntegrityReport",
     "PendingChange",
     "RepairReport",
 ]

@@ -123,8 +123,18 @@ def scan(
     if paths:
         changes = [c for c in changes if _filter_paths(_change_path(c), paths)]
     _render_changes(changes)
-    if verify and changes:
-        sys.exit(1)
+    if verify:
+        par2_report = archive.verify_par2_integrity()
+        for problem in par2_report.problems:
+            _logger.error("par2 integrity: %s", problem)
+        if not par2_report.ok:
+            console.print(
+                f"[red]par2 integrity failed ({len(par2_report.problems)} problem(s))[/red]"
+            )
+        else:
+            console.print("[green]par2 integrity ok[/green]")
+        if changes or not par2_report.ok:
+            sys.exit(1)
     if apply and changes:
         if not yes:
             typer.confirm("Proceed with update?", abort=True)
