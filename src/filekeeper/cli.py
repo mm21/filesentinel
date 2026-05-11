@@ -114,7 +114,7 @@ def scan(
         help="Update manifest and par2 redundancy with detected changes",
     ),
     yes: bool = typer.Option(
-        False, "-y", "--yes", help="Skip confirmation when applying."
+        False, "-y", "--yes", help="Skip confirmation when applying"
     ),
     paths: list[str] = typer.Argument(None),
 ):
