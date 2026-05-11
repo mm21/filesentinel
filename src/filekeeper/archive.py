@@ -181,6 +181,7 @@ class Archive:
                 for file in on_disk.values():
                     name = file.rel_path.as_posix().ljust(max_len)
                     progress.update(task, description=f"hashing {name}")
+                    _logger.debug("hashing %s", file.rel_path.as_posix())
                     file.load_digest()
                     progress.advance(task, file.size)
 
@@ -248,32 +249,56 @@ class Archive:
         live_digests = {fm.digest for fm in self.__manifest.entries.values()}
 
         # par2 churn
+        par2_creates: list[File] = []
         for ch in changes:
-            # TODO: show progress spinner like Archive.scan()
-            match ch.change_type:
-                case "add" | "edit":
-                    assert ch.new is not None
-                    par2_dir = self.__manifest.map_digest(ch.new.digest)
-                    if not par2_dir.exists():
-                        _logger.info("par2 create %s", ch.new.rel_path)
+            if ch.change_type in ("add", "edit"):
+                assert ch.new is not None
+                par2_dir = self.__manifest.map_digest(ch.new.digest)
+                if not par2_dir.exists():
+                    par2_creates.append(ch.new)
+        total_bytes = sum(f.size for f in par2_creates)
+        max_len = max((len(f.rel_path.as_posix()) for f in par2_creates), default=0)
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            DownloadColumn(),
+            TimeElapsedColumn(),
+            TransferSpeedColumn(),
+            console=console,
+            transient=True,
+            disable=not par2_creates,
+        ) as progress:
+            task = progress.add_task("par2 create", total=total_bytes)
+            for ch in changes:
+                match ch.change_type:
+                    case "add" | "edit":
+                        assert ch.new is not None
+                        par2_dir = self.__manifest.map_digest(ch.new.digest)
+                        assert not par2_dir.exists()
+                        name = ch.new.rel_path.as_posix().ljust(max_len)
+                        progress.update(task, description=f"par2 create {name}")
+                        _logger.debug("par2 create %s", ch.new.rel_path)
                         par2_create(
                             ch.new.path,
                             par2_dir,
                             recovery_pct=self.__config.recovery_pct,
                         )
-                    self.__record_par2_set(ch.new.digest)
-                case "delete":
-                    pass
-                case "move":
-                    pass
+                        progress.advance(task, ch.new.size)
+                        self.__record_par2_set(ch.new.digest)
+                    case "delete":
+                        pass
+                    case "move":
+                        pass
 
-            # drop unreferenced par2 dir for old digest
-            if ch.old is not None and ch.old.digest not in live_digests:
-                old_dir = self.__manifest.map_digest(ch.old.digest)
-                if old_dir.exists():
-                    _logger.info("par2 drop %s", ch.old.digest[:12])
-                    shutil.rmtree(old_dir)
-                self.__manifest.drop_par2_set(ch.old.digest)
+                # drop unreferenced par2 dir for old digest
+                if ch.old is not None and ch.old.digest not in live_digests:
+                    old_dir = self.__manifest.map_digest(ch.old.digest)
+                    if old_dir.exists():
+                        _logger.info("par2 drop %s", ch.old.digest[:12])
+                        shutil.rmtree(old_dir)
+                    self.__manifest.drop_par2_set(ch.old.digest)
 
         self.__manifest.save()
 
