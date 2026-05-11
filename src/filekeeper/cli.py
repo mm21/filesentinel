@@ -16,7 +16,7 @@ from rich.logging import RichHandler
 from rich.table import Table
 
 from .archive import Archive
-from .manifest import PendingChange
+from .manifest import Par2Change, PendingChange
 from .utils import console
 
 rich.traceback.install(show_locals=True)
@@ -120,25 +120,20 @@ def scan(
 ):
     archive = _get_archive(ctx, root)
     changes = archive.scan(fast=fast)
+    par2_changes = archive.scan_par2()
     if paths:
         changes = [c for c in changes if _filter_paths(_change_path(c), paths)]
     _render_changes(changes)
-    if verify:
-        par2_report = archive.verify_par2_integrity()
-        for problem in par2_report.problems:
-            _logger.error("par2 integrity: %s", problem)
-        if not par2_report.ok:
-            console.print(
-                f"[red]par2 integrity failed ({len(par2_report.problems)} problem(s))[/red]"
-            )
-        else:
-            console.print("[green]par2 integrity ok[/green]")
-        if changes or not par2_report.ok:
-            sys.exit(1)
-    if apply and changes:
+    _render_par2_changes(par2_changes)
+    if verify and (changes or par2_changes):
+        sys.exit(1)
+    if apply and (changes or par2_changes):
         if not yes:
             typer.confirm("Proceed with update?", abort=True)
-        archive.apply(changes)
+        if changes:
+            archive.apply(changes)
+        if par2_changes:
+            archive.apply_par2(par2_changes)
         console.print("[green]manifest updated[/green]")
 
 
@@ -201,6 +196,43 @@ def _format_size(n: int) -> str:
             return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
         n /= 1024  # type: ignore[assignment]
     return f"{n:.1f} PiB"
+
+
+def _render_par2_changes(changes: list[Par2Change]) -> None:
+    if not changes:
+        return
+    table = Table(title=f"{len(changes)} pending par2 change(s)")
+    table.add_column("change")
+    table.add_column("content digest")
+    table.add_column("par2 file")
+    table.add_column("digest")
+    for ch in changes:
+        match ch.change_type:
+            case "add":
+                assert ch.new is not None
+                table.add_row(
+                    "[green]par2-add[/green]",
+                    ch.content_digest[:12],
+                    ch.name,
+                    ch.new.digest[:12],
+                )
+            case "delete":
+                assert ch.old is not None
+                table.add_row(
+                    "[red]par2-delete[/red]",
+                    ch.content_digest[:12],
+                    ch.name,
+                    ch.old.digest[:12],
+                )
+            case "edit":
+                assert ch.old is not None and ch.new is not None
+                table.add_row(
+                    "[magenta]par2-edit[/magenta]",
+                    ch.content_digest[:12],
+                    ch.name,
+                    f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
+                )
+    console.print(table)
 
 
 def _render_changes(changes: list[PendingChange]) -> None:

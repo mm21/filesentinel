@@ -13,7 +13,6 @@ import yaml
 from pydantic import BaseModel
 
 if TYPE_CHECKING:
-    from .archive import Archive
     from .file import File
 
 
@@ -21,7 +20,8 @@ INDEX_FILENAME = "manifest.yaml"
 TREE_DIRNAME = "tree"
 TREE_DEPTH = 2
 
-type ChangeType = Literal["add", "delete", "move", "edit"]
+type ChangeType = Literal["add", "edit", "delete", "move"]
+type Par2ChangeType = Literal["add", "edit", "delete"]
 
 
 class FileModel(BaseModel):
@@ -43,13 +43,43 @@ class FileModel(BaseModel):
     mtime: float
 
 
+class Par2FileModel(BaseModel):
+    """
+    Manifest entry for one par2 redundancy file.
+    """
+
+    name: str
+    """
+    Basename of the par2 file within its par2 dir.
+    """
+
+    digest: str
+    """
+    SHA-256 hex digest of the par2 file's contents.
+    """
+
+
+class Par2SetModel(BaseModel):
+    """
+    The par2 redundancy set for one content digest.
+    """
+
+    digest: str
+    """
+    Content digest (SHA-256) of the source file the set protects.
+    """
+
+    files: list[Par2FileModel] = []
+
+
 class ManifestModel(BaseModel):
     """
     Model used to load/store the manifest index file.
     """
 
-    version: int = 1
+    version: int = 2
     files: list[FileModel] = []
+    par2_sets: list[Par2SetModel] = []
 
 
 @dataclass
@@ -68,21 +98,38 @@ class PendingChange:
     old: FileModel | None = None
 
 
+@dataclass
+class Par2Change:
+    """
+    A change detected in a par2 redundancy set.
+
+    - `add`    : `new` only — par2 file present on disk, not in manifest
+    - `delete` : `old` only — par2 file recorded in manifest, missing on disk
+    - `edit`   : both — par2 file on disk differs from recorded digest
+    """
+
+    change_type: Par2ChangeType
+    content_digest: str
+    name: str
+    new: Par2FileModel | None = None
+    old: Par2FileModel | None = None
+
+
 class Manifest:
     """
     Manifest of files in an archive folder.
     """
 
     __path: Path
-    __archive: Archive
     __model: ManifestModel
     __entries: dict[str, FileModel]
+    __par2_sets: dict[str, dict[str, Par2FileModel]]
 
-    def __init__(self, path: Path, archive: "Archive"):
+    def __init__(self, path: Path):
         self.__path = path
-        self.__archive = archive
         self.__model = ManifestModel()
         self.__entries = {}
+        self.__par2_sets = {}
 
     @property
     def path(self) -> Path:
@@ -103,6 +150,13 @@ class Manifest:
         """
         return self.__entries
 
+    @property
+    def par2_sets(self) -> dict[str, dict[str, Par2FileModel]]:
+        """
+        Par2 file records keyed by content digest, then by par2 file basename.
+        """
+        return self.__par2_sets
+
     def load(self) -> None:
         """
         Load the manifest from disk.
@@ -112,11 +166,15 @@ class Manifest:
         if not self.index_path.exists():
             self.__model = ManifestModel()
             self.__entries = {}
+            self.__par2_sets = {}
             return
         with self.index_path.open("r", encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         self.__model = ManifestModel.model_validate(data)
         self.__entries = {fm.path: fm for fm in self.__model.files}
+        self.__par2_sets = {
+            ps.digest: {pf.name: pf for pf in ps.files} for ps in self.__model.par2_sets
+        }
 
     def save(self) -> None:
         """
@@ -124,6 +182,13 @@ class Manifest:
         """
         self.__path.mkdir(parents=True, exist_ok=True)
         self.__model.files = sorted(self.__entries.values(), key=lambda f: f.path)
+        self.__model.par2_sets = [
+            Par2SetModel(
+                digest=d,
+                files=sorted(self.__par2_sets[d].values(), key=lambda f: f.name),
+            )
+            for d in sorted(self.__par2_sets)
+        ]
         tmp = self.index_path.with_suffix(".yaml.tmp")
         with tmp.open("w", encoding="utf-8") as f:
             yaml.safe_dump(
@@ -144,6 +209,20 @@ class Manifest:
         assert len(digest) >= TREE_DEPTH * 2
         parts = [digest[i * 2 : (i + 1) * 2] for i in range(TREE_DEPTH)]
         return self.tree_root.joinpath(*parts, digest)
+
+    def set_par2_files(
+        self, content_digest: str, files: Sequence[Par2FileModel]
+    ) -> None:
+        """
+        Record the par2 file set for a content digest, replacing any prior entry.
+        """
+        self.__par2_sets[content_digest] = {f.name: f for f in files}
+
+    def drop_par2_set(self, content_digest: str) -> None:
+        """
+        Remove the par2 file set for a content digest.
+        """
+        self.__par2_sets.pop(content_digest, None)
 
     def apply(self, changes: Sequence[PendingChange]) -> None:
         """

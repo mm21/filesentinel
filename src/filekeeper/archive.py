@@ -23,14 +23,14 @@ from rich.progress import (
 
 from .config import ConfigModel
 from .file import File
-from .manifest import Manifest, PendingChange
+from .manifest import Manifest, Par2Change, Par2FileModel, PendingChange
 from .utils import (
     console,
+    iter_par2_files,
     par2_create,
     par2_repair,
     rip_disk,
-    verify_sha256_sidecars,
-    write_sha256_sidecars,
+    sha256_file,
 )
 
 DEFAULT_MANIFEST_DIRNAME = ".filekeeper"
@@ -63,19 +63,6 @@ class RepairReport:
     @property
     def ok(self) -> bool:
         return not self.unrepairable
-
-
-@dataclass
-class Par2IntegrityReport:
-    """
-    Outcome of verifying the SHA-256 sidecars for par2 redundancy data.
-    """
-
-    problems: list[str] = field(default_factory=list)
-
-    @property
-    def ok(self) -> bool:
-        return not self.problems
 
 
 class Archive:
@@ -114,7 +101,7 @@ class Archive:
             else self.__manifest_path / DEFAULT_CONFIG_FILENAME
         )
         self.__config = ConfigModel.from_yaml(self.__config_path)
-        self.__manifest = Manifest(self.__manifest_path, self)
+        self.__manifest = Manifest(self.__manifest_path)
         self.__manifest.load()
 
     @property
@@ -271,7 +258,7 @@ class Archive:
                             par2_dir,
                             recovery_pct=self.__config.recovery_pct,
                         )
-                    write_sha256_sidecars(par2_dir)
+                    self.__record_par2_set(ch.new.digest)
                 case "delete":
                     pass
                 case "move":
@@ -283,8 +270,21 @@ class Archive:
                 if old_dir.exists():
                     _logger.info("par2 drop %s", ch.old.digest[:12])
                     shutil.rmtree(old_dir)
+                self.__manifest.drop_par2_set(ch.old.digest)
 
         self.__manifest.save()
+
+    def __record_par2_set(self, content_digest: str) -> None:
+        """
+        Hash every file in the par2 dir for `content_digest` and record the set in the
+        manifest.
+        """
+        par2_dir = self.__manifest.map_digest(content_digest)
+        files = [
+            Par2FileModel(name=p.name, digest=sha256_file(p))
+            for p in iter_par2_files(par2_dir)
+        ]
+        self.__manifest.set_par2_files(content_digest, files)
 
     def repair(self, changes: Sequence[PendingChange]) -> RepairReport:
         """
@@ -302,7 +302,7 @@ class Archive:
                     if ok:
                         report.repaired.append(ch.new.rel_path.as_posix())
                         # par2 repair with -p purges the par2 set; rebuild it
-                        # along with sha256 sidecars
+                        # and refresh the manifest record
                         if par2_dir.exists():
                             shutil.rmtree(par2_dir)
                         par2_create(
@@ -310,7 +310,8 @@ class Archive:
                             par2_dir,
                             recovery_pct=self.__config.recovery_pct,
                         )
-                        write_sha256_sidecars(par2_dir)
+                        self.__record_par2_set(ch.old.digest)
+                        self.__manifest.save()
                     else:
                         report.unrepairable.append(ch.new.rel_path.as_posix())
                 case "delete":
@@ -325,25 +326,94 @@ class Archive:
 
     def verify(self) -> bool:
         """
-        Return True iff a full scan (no fast-path) yields no pending changes and all
-        par2 redundancy sidecars match.
+        Return True iff a full scan (no fast-path) yields no pending changes for either
+        data files or par2 redundancy files.
         """
-        return not self.scan() and self.verify_par2_integrity().ok
+        return not self.scan() and not self.scan_par2()
 
-    def verify_par2_integrity(self) -> Par2IntegrityReport:
+    def scan_par2(self) -> list[Par2Change]:
         """
-        Verify the SHA-256 sidecars of par2 redundancy data for every digest currently
-        referenced by the manifest.
+        Walk the par2 dirs for every digest referenced by the manifest and return
+        differences (additions, edits, deletions) vs the manifest's recorded set.
         """
-        report = Par2IntegrityReport()
+        changes: list[Par2Change] = []
         seen: set[str] = set()
         for fm in self.__manifest.entries.values():
             if fm.digest in seen:
                 continue
             seen.add(fm.digest)
-            par2_dir = self.__manifest.map_digest(fm.digest)
-            report.problems.extend(verify_sha256_sidecars(par2_dir))
-        return report
+            changes.extend(self.__scan_par2_dir(fm.digest))
+        changes.sort(key=_par2_change_sort_key)
+        return changes
+
+    def __scan_par2_dir(self, content_digest: str) -> list[Par2Change]:
+        par2_dir = self.__manifest.map_digest(content_digest)
+        recorded = self.__manifest.par2_sets.get(content_digest, {})
+        on_disk: dict[str, Par2FileModel] = {}
+        if par2_dir.exists():
+            for p in iter_par2_files(par2_dir):
+                on_disk[p.name] = Par2FileModel(name=p.name, digest=sha256_file(p))
+        changes: list[Par2Change] = []
+        for name, pf in on_disk.items():
+            old = recorded.get(name)
+            if old is None:
+                changes.append(
+                    Par2Change("add", content_digest=content_digest, name=name, new=pf)
+                )
+            elif old.digest != pf.digest:
+                changes.append(
+                    Par2Change(
+                        "edit",
+                        content_digest=content_digest,
+                        name=name,
+                        new=pf,
+                        old=old,
+                    )
+                )
+        for name, old in recorded.items():
+            if name not in on_disk:
+                changes.append(
+                    Par2Change(
+                        "delete", content_digest=content_digest, name=name, old=old
+                    )
+                )
+        return changes
+
+    def apply_par2(self, changes: Sequence[Par2Change]) -> None:
+        """
+        Rebuild par2 sets for every content digest touched by `changes`.
+
+        Picks any current manifest entry with the affected content digest as the
+        source for `par2 create`. Errors if the source file is missing or its
+        digest no longer matches (in which case the user data is suspect and
+        should go through `repair` first).
+        """
+        affected: set[str] = {ch.content_digest for ch in changes}
+        digest_to_path = {fm.digest: fm.path for fm in self.__manifest.entries.values()}
+        for digest in sorted(affected):
+            rel = digest_to_path.get(digest)
+            if rel is None:
+                raise RuntimeError(
+                    f"cannot rebuild par2 for {digest[:12]}: no manifest entry"
+                )
+            src = self.__root / rel
+            if not src.exists():
+                raise RuntimeError(
+                    f"cannot rebuild par2 for {digest[:12]}: source missing: {rel}"
+                )
+            actual = sha256_file(src)
+            if actual != digest:
+                raise RuntimeError(
+                    f"cannot rebuild par2 for {digest[:12]}: source digest "
+                    f"mismatch ({actual[:12]}); run `repair` first"
+                )
+            par2_dir = self.__manifest.map_digest(digest)
+            if par2_dir.exists():
+                shutil.rmtree(par2_dir)
+            _logger.info("par2 rebuild %s", rel)
+            par2_create(src, par2_dir, recovery_pct=self.__config.recovery_pct)
+            self.__record_par2_set(digest)
+        self.__manifest.save()
 
     def rip_disk(
         self,
@@ -371,6 +441,7 @@ class Archive:
 
 
 _CHANGE_ORDER = {"add": 0, "delete": 1, "move": 2, "edit": 3}
+_PAR2_CHANGE_ORDER = {"add": 0, "delete": 1, "edit": 2}
 
 
 def _change_sort_key(ch: PendingChange) -> tuple[int, str]:
@@ -380,3 +451,7 @@ def _change_sort_key(ch: PendingChange) -> tuple[int, str]:
         assert ch.old is not None
         path = ch.old.path
     return (_CHANGE_ORDER[ch.change_type], path)
+
+
+def _par2_change_sort_key(ch: Par2Change) -> tuple[int, str, str]:
+    return (_PAR2_CHANGE_ORDER[ch.change_type], ch.content_digest, ch.name)

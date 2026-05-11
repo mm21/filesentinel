@@ -72,6 +72,67 @@ def test_delete_detected(archive_root: Path):
 
 
 @needs_par2
+def test_apply_records_par2_files(archive: Archive):
+    archive.apply(archive.scan())
+    # every referenced content digest has a recorded par2 set
+    for fm in archive.manifest.entries.values():
+        par2_dir = archive.manifest.map_digest(fm.digest)
+        on_disk = sorted(p.name for p in par2_dir.iterdir() if p.is_file())
+        recorded = sorted(archive.manifest.par2_sets[fm.digest])
+        assert on_disk == recorded
+
+
+@needs_par2
+def test_scan_par2_detects_deleted_par2_file(archive_root: Path):
+    a = Archive(archive_root)
+    a.apply(a.scan())
+
+    digest = next(iter(a.manifest.entries.values())).digest
+    par2_dir = a.manifest.map_digest(digest)
+    victim = next(p for p in par2_dir.iterdir() if p.name.endswith(".par2"))
+    victim.unlink()
+
+    a2 = Archive(archive_root)
+    changes = a2.scan_par2()
+    assert any(c.change_type == "delete" and c.name == victim.name for c in changes)
+
+
+@needs_par2
+def test_scan_par2_detects_modified_par2_file(archive_root: Path):
+    a = Archive(archive_root)
+    a.apply(a.scan())
+
+    digest = next(iter(a.manifest.entries.values())).digest
+    par2_dir = a.manifest.map_digest(digest)
+    victim = next(p for p in par2_dir.iterdir() if p.name.endswith(".par2"))
+    victim.write_bytes(b"corrupted")
+
+    a2 = Archive(archive_root)
+    changes = a2.scan_par2()
+    assert any(c.change_type == "edit" and c.name == victim.name for c in changes)
+
+
+@needs_par2
+def test_apply_par2_rebuilds(archive_root: Path):
+    a = Archive(archive_root)
+    a.apply(a.scan())
+
+    digest = next(iter(a.manifest.entries.values())).digest
+    par2_dir = a.manifest.map_digest(digest)
+    victim = next(p for p in par2_dir.iterdir() if p.name.endswith(".par2"))
+    victim.unlink()
+
+    a2 = Archive(archive_root)
+    par2_changes = a2.scan_par2()
+    assert par2_changes
+    a2.apply_par2(par2_changes)
+
+    a3 = Archive(archive_root)
+    assert a3.scan_par2() == []
+    assert a3.verify() is True
+
+
+@needs_par2
 def test_fast_mode_uses_size_mtime(archive_root: Path):
     a = Archive(archive_root)
     a.apply(a.scan())
