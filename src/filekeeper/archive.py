@@ -165,9 +165,13 @@ class Archive:
                 console=console,
                 transient=True,
             ) as progress:
+                max_len = max(
+                    (len(f.rel_path.as_posix()) for f in on_disk.values()), default=0
+                )
                 task = progress.add_task("hashing", total=total_bytes)
                 for file in on_disk.values():
-                    progress.update(task, description=f"hashing {file.rel_path}")
+                    name = file.rel_path.as_posix().ljust(max_len)
+                    progress.update(task, description=f"hashing {name}")
                     file.load_digest()
                     progress.advance(task, file.size)
 
