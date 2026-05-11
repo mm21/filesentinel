@@ -23,11 +23,13 @@ class File:
 
     __path: Path
     __archive: Archive
+    __stat: stat_result
     __digest: str | None = None
 
     def __init__(self, path: Path, archive: Archive):
         self.__path = path
         self.__archive = archive
+        self.__stat = path.stat()
 
     @property
     def path(self) -> Path:
@@ -53,17 +55,17 @@ class File:
 
         return self.manifest_path / f"{PAR2_BASENAME}.par2"
 
-    @cached_property
+    @property
     def stat(self) -> stat_result:
-        return self.__path.stat()
+        return self.__stat
 
-    @cached_property
+    @property
     def size(self) -> int:
-        return self.stat.st_size
+        return self.__stat.st_size
 
-    @cached_property
+    @property
     def mtime(self) -> float:
-        return self.stat.st_mtime
+        return self.__stat.st_mtime
 
     @cached_property
     def digest(self) -> str:
