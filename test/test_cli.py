@@ -99,3 +99,84 @@ def test_list_command(archive_root: Path):
     # no manifest yet -> empty list
     r = runner.invoke(app, ["list", str(archive_root)])
     assert r.exit_code == 0
+
+
+def test_apply_writes_manifest_sha_sidecar(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    a = Archive(archive_root)
+    assert a.manifest.index_path.exists()
+    assert a.manifest.index_sha_path.exists()
+    assert a.manifest.read_index_sha() == a.manifest.compute_index_sha()
+
+
+def test_scan_prints_unchanged_after_apply(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    r = runner.invoke(app, ["scan", root])
+    assert r.exit_code == 0, r.output
+    assert "manifest.yaml: unchanged" in r.output
+
+
+def test_verify_passes_when_sidecar_matches(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    r = runner.invoke(app, ["scan", root, "--verify"])
+    assert r.exit_code == 0, r.output
+    assert "manifest.yaml: unchanged" in r.output
+
+
+def test_verify_fails_when_manifest_tampered(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    a = Archive(archive_root)
+    # tamper with manifest.yaml (append a trailing comment so it remains valid YAML
+    # and does not register any user-file changes)
+    with a.manifest.index_path.open("a", encoding="utf-8") as f:
+        f.write("# tampered\n")
+
+    r = runner.invoke(app, ["scan", root, "--verify"])
+    assert r.exit_code == 1
+    assert "manifest.yaml: changed" in r.output
+
+
+def test_verify_fails_when_sidecar_missing(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    a = Archive(archive_root)
+    a.manifest.index_sha_path.unlink()
+
+    r = runner.invoke(app, ["scan", root, "--verify"])
+    assert r.exit_code == 1
+    assert "manifest.yaml: changed" in r.output
+
+
+def test_apply_refreshes_sidecar_after_change(archive_root: Path):
+    root = str(archive_root)
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    a = Archive(archive_root)
+    old_sha = a.manifest.read_index_sha()
+    assert old_sha is not None
+
+    # introduce a real user-file change so apply rewrites the manifest
+    (archive_root / "new.txt").write_bytes(b"new content\n")
+    r = runner.invoke(app, ["scan", root, "--apply", "-y"])
+    assert r.exit_code == 0, r.output
+
+    a = Archive(archive_root)
+    new_sha = a.manifest.read_index_sha()
+    assert new_sha is not None
+    assert new_sha != old_sha
+    assert new_sha == a.manifest.compute_index_sha()

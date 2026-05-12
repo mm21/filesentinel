@@ -131,7 +131,8 @@ def scan(
     _render_changes(changes)
     if par2:
         _render_par2_changes(par2_changes)
-    if verify and (changes or par2_changes):
+    sha_changed = _render_manifest_sha_status(archive)
+    if verify and (changes or par2_changes or sha_changed):
         sys.exit(1)
     if apply and (changes or par2_changes):
         if not yes:
@@ -140,6 +141,7 @@ def scan(
             archive.apply(changes, par2=par2)
         if par2_changes:
             archive.apply_par2(par2_changes)
+        archive.manifest.update_index_sha()
         console.print("[green]manifest updated[/green]")
 
 
@@ -239,6 +241,36 @@ def _render_par2_changes(changes: list[Par2Change]) -> None:
                     f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
                 )
     console.print(table)
+
+
+def _render_manifest_sha_status(archive: Archive) -> bool:
+    """
+    Print the manifest.yaml sidecar SHA status.
+
+    Returns True iff changed/mismatched.
+    """
+    m = archive.manifest
+    current = m.compute_index_sha()
+    recorded = m.read_index_sha()
+    if current is None:
+        if recorded is None:
+            return False
+        console.print("[red]manifest.yaml: missing[/red] (sidecar present)")
+        return True
+    if recorded is None:
+        console.print(
+            f"[magenta]manifest.yaml: changed[/magenta] "
+            f"(no sidecar; current={current[:12]})"
+        )
+        return True
+    if current == recorded:
+        console.print(f"[green]manifest.yaml: unchanged[/green] ({current[:12]})")
+        return False
+    console.print(
+        f"[magenta]manifest.yaml: changed[/magenta] "
+        f"({recorded[:12]} -> {current[:12]})"
+    )
+    return True
 
 
 def _render_changes(changes: list[PendingChange]) -> None:

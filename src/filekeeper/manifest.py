@@ -12,11 +12,14 @@ from typing import TYPE_CHECKING, Literal, Sequence
 import yaml
 from pydantic import BaseModel
 
+from .utils import sha256_file
+
 if TYPE_CHECKING:
     from .file import File
 
 
 INDEX_FILENAME = "manifest.yaml"
+INDEX_SHA_FILENAME = f"{INDEX_FILENAME}.sha256"
 TREE_DIRNAME = "tree"
 TREE_DEPTH = 2
 
@@ -140,6 +143,10 @@ class Manifest:
         return self.__path / INDEX_FILENAME
 
     @property
+    def index_sha_path(self) -> Path:
+        return self.__path / INDEX_SHA_FILENAME
+
+    @property
     def tree_root(self) -> Path:
         return self.__path / TREE_DIRNAME
 
@@ -198,6 +205,34 @@ class Manifest:
                 default_flow_style=False,
             )
         os.replace(tmp, self.index_path)
+
+    def compute_index_sha(self) -> str | None:
+        """
+        SHA-256 hex digest of the on-disk manifest index, or None if it does not exist.
+        """
+        if not self.index_path.exists():
+            return None
+        return sha256_file(self.index_path)
+
+    def read_index_sha(self) -> str | None:
+        """
+        Recorded SHA-256 from the sidecar file, or None if the sidecar does not exist.
+        """
+        if not self.index_sha_path.exists():
+            return None
+        return self.index_sha_path.read_text(encoding="utf-8").strip()
+
+    def update_index_sha(self) -> str:
+        """
+        Recompute the manifest index SHA-256 and atomically write it to the sidecar.
+
+        Returns the new digest. Requires the index to exist on disk.
+        """
+        digest = sha256_file(self.index_path)
+        tmp = self.index_sha_path.with_suffix(".sha256.tmp")
+        tmp.write_text(digest + "\n", encoding="utf-8")
+        os.replace(tmp, self.index_sha_path)
+        return digest
 
     def map_digest(self, digest: str) -> Path:
         """
