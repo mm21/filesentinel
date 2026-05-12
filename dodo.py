@@ -9,6 +9,12 @@ Path("__cache__").mkdir(parents=True, exist_ok=True)
 
 PACKAGE = "typecraft"
 
+FORMAT_PATHS = [
+    "./src",
+    "./test",
+    "./*.py",
+]
+
 BADGES_PATH = Path("badges")
 PYTEST_BADGE = BADGES_PATH / "tests.svg"
 COV_BADGE = BADGES_PATH / "cov.svg"
@@ -28,26 +34,19 @@ def task_format() -> Task:
     Run formatters.
     """
 
-    autoflake_args = [
-        "autoflake",
-        ".",
-    ]
+    cwd = Path.cwd()
+    format_paths: list[str] = []
+    for i in (cwd.glob(p) for p in FORMAT_PATHS):
+        for p in i:
+            if p.is_dir():
+                format_paths.append(f"{p}/")
+            else:
+                format_paths.append(str(p))
 
-    isort_args = [
-        "isort",
-        ".",
-    ]
-
-    docformatter_args = [
-        "docformatter",
-        ".",
-    ]
-
-    black_args = [
-        "black",
-        ".",
-    ]
-
+    autoflake_args = ["autoflake"] + format_paths
+    isort_args = ["isort"] + format_paths
+    docformatter_args = ["docformatter"] + format_paths
+    black_args = ["black"] + format_paths
     toml_sort_args = [
         "toml-sort",
         "-i",
