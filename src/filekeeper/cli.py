@@ -111,7 +111,12 @@ def scan(
     apply: bool = typer.Option(
         False,
         "--apply",
-        help="Update manifest and par2 redundancy with detected changes",
+        help="Update manifest with detected changes",
+    ),
+    par2: bool = typer.Option(
+        False,
+        "--par2",
+        help="Also create/verify par2 redundancy files",
     ),
     yes: bool = typer.Option(
         False, "-y", "--yes", help="Skip confirmation when applying"
@@ -120,18 +125,19 @@ def scan(
 ):
     archive = _get_archive(ctx, root)
     changes = archive.scan(fast=fast)
-    par2_changes = archive.scan_par2()
+    par2_changes = archive.scan_par2() if par2 else []
     if paths:
         changes = [c for c in changes if _filter_paths(_change_path(c), paths)]
     _render_changes(changes)
-    _render_par2_changes(par2_changes)
+    if par2:
+        _render_par2_changes(par2_changes)
     if verify and (changes or par2_changes):
         sys.exit(1)
     if apply and (changes or par2_changes):
         if not yes:
             typer.confirm("Proceed with update?", abort=True)
         if changes:
-            archive.apply(changes)
+            archive.apply(changes, par2=par2)
         if par2_changes:
             archive.apply_par2(par2_changes)
         console.print("[green]manifest updated[/green]")

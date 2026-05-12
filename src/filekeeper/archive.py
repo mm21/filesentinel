@@ -230,22 +230,18 @@ class Archive:
         result.sort(key=_change_sort_key)
         return result
 
-    def apply(self, changes: Sequence[PendingChange]) -> None:
+    def apply(self, changes: Sequence[PendingChange], *, par2: bool = False) -> None:
         """
-        Apply changes to the manifest and update par2 redundancy data on disk.
-        """
-        # which digests will remain referenced after applying changes?
-        future_digests = {fm.digest for fm in self.__manifest.entries.values()}
-        for ch in changes:
-            if ch.change_type in ("delete", "edit", "move") and ch.old is not None:
-                # old digest may or may not still be referenced — recompute below
-                pass
-            if ch.new is not None:
-                future_digests.add(ch.new.digest)
+        Apply changes to the manifest.
 
-        # tentatively remove old digests then re-add what survives
-        # (recompute properly after apply)
+        If `par2` is true, also update par2 redundancy
+        data on disk for affected content digests.
+        """
         self.__manifest.apply(changes)
+        if not par2:
+            self.__manifest.save()
+            return
+
         live_digests = {fm.digest for fm in self.__manifest.entries.values()}
 
         # par2 churn
@@ -404,6 +400,7 @@ class Archive:
         dest_iso: Path,
         *,
         create_parents: bool = False,
+        par2: bool = False,
     ) -> File:
         """
         Rip a disk to `dest_iso` (relative to archive root) and add it to the manifest.
@@ -419,7 +416,7 @@ class Archive:
             target.parent.mkdir(parents=True, exist_ok=True)
         rip_disk(src_disk, target)
         f = File(target, self)
-        self.apply([PendingChange("add", new=f)])
+        self.apply([PendingChange("add", new=f)], par2=par2)
         return f
 
     def __record_par2_set(self, content_digest: str) -> None:

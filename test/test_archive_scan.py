@@ -11,20 +11,23 @@ def _types(changes) -> list[str]:
     return sorted(c.change_type for c in changes)
 
 
-@needs_par2
 def test_initial_scan_all_adds(archive: Archive):
     changes = archive.scan()
     assert _types(changes) == ["add", "add", "add"]
 
 
-@needs_par2
 def test_clean_after_apply(archive: Archive):
     archive.apply(archive.scan())
     assert archive.scan() == []
     assert archive.verify() is True
 
 
-@needs_par2
+def test_apply_does_not_create_par2_by_default(archive: Archive):
+    archive.apply(archive.scan())
+    assert archive.manifest.par2_sets == {}
+    assert not archive.manifest.tree_root.exists()
+
+
 def test_edit_detected(archive_root: Path):
     a = Archive(archive_root)
     a.apply(a.scan())
@@ -39,7 +42,6 @@ def test_edit_detected(archive_root: Path):
     assert changes[0].new.rel_path.as_posix() == "a.txt"
 
 
-@needs_par2
 def test_move_detected(archive_root: Path):
     a = Archive(archive_root)
     a.apply(a.scan())
@@ -56,7 +58,6 @@ def test_move_detected(archive_root: Path):
     assert changes[0].new.rel_path.as_posix() == "renamed.txt"
 
 
-@needs_par2
 def test_delete_detected(archive_root: Path):
     a = Archive(archive_root)
     a.apply(a.scan())
@@ -73,7 +74,7 @@ def test_delete_detected(archive_root: Path):
 
 @needs_par2
 def test_apply_records_par2_files(archive: Archive):
-    archive.apply(archive.scan())
+    archive.apply(archive.scan(), par2=True)
     # every referenced content digest has a recorded par2 set
     for fm in archive.manifest.entries.values():
         par2_dir = archive.manifest.map_digest(fm.digest)
@@ -85,7 +86,7 @@ def test_apply_records_par2_files(archive: Archive):
 @needs_par2
 def test_scan_par2_detects_deleted_par2_file(archive_root: Path):
     a = Archive(archive_root)
-    a.apply(a.scan())
+    a.apply(a.scan(), par2=True)
 
     digest = next(iter(a.manifest.entries.values())).digest
     par2_dir = a.manifest.map_digest(digest)
@@ -100,7 +101,7 @@ def test_scan_par2_detects_deleted_par2_file(archive_root: Path):
 @needs_par2
 def test_scan_par2_detects_modified_par2_file(archive_root: Path):
     a = Archive(archive_root)
-    a.apply(a.scan())
+    a.apply(a.scan(), par2=True)
 
     digest = next(iter(a.manifest.entries.values())).digest
     par2_dir = a.manifest.map_digest(digest)
@@ -115,7 +116,7 @@ def test_scan_par2_detects_modified_par2_file(archive_root: Path):
 @needs_par2
 def test_apply_par2_rebuilds(archive_root: Path):
     a = Archive(archive_root)
-    a.apply(a.scan())
+    a.apply(a.scan(), par2=True)
 
     digest = next(iter(a.manifest.entries.values())).digest
     par2_dir = a.manifest.map_digest(digest)
@@ -132,7 +133,6 @@ def test_apply_par2_rebuilds(archive_root: Path):
     assert a3.verify() is True
 
 
-@needs_par2
 def test_fast_mode_uses_size_mtime(archive_root: Path):
     a = Archive(archive_root)
     a.apply(a.scan())
