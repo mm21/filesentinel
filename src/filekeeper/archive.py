@@ -161,31 +161,15 @@ class Archive:
                 on_disk[file.rel_path.as_posix()] = file
         on_disk = {p: on_disk[p] for p in sorted(on_disk)}
 
-        if not fast:
-            # first pass to load digests since it may be slow
-            total_bytes = sum(f.size for f in on_disk.values())
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                DownloadColumn(),
-                TimeElapsedColumn(),
-                TransferSpeedColumn(),
-                console=console,
-                transient=True,
-            ) as progress:
-                max_len = max(
-                    (len(f.rel_path.as_posix()) for f in on_disk.values()), default=0
-                )
-                task = progress.add_task("hashing", total=total_bytes)
-                for file in on_disk.values():
-                    name = file.rel_path.as_posix().ljust(max_len)
-                    progress.update(task, description=f"hashing {name}")
-                    _logger.debug("hashing %s", file.rel_path.as_posix())
-                    file.load_digest()
-                    progress.advance(task, file.size)
-
         entries = self.__manifest.entries
+
+        # first pass to load digests since it may be slow
+        if fast:
+            new_files = {p: f for p, f in on_disk.items() if p not in entries}
+            _hash_files(new_files)
+        else:
+            _hash_files(on_disk)
+
         adds: list[PendingChange] = []
         deletes: list[PendingChange] = []
         edits: list[PendingChange] = []
@@ -463,6 +447,32 @@ class Archive:
                     )
                 )
         return changes
+
+
+def _hash_files(files: dict[str, File]) -> None:
+    """
+    Load digests for `files` with a progress spinner.
+    """
+    total_bytes = sum(f.size for f in files.values())
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        DownloadColumn(),
+        TimeElapsedColumn(),
+        TransferSpeedColumn(),
+        console=console,
+        transient=True,
+        disable=not files,
+    ) as progress:
+        max_len = max((len(f.rel_path.as_posix()) for f in files.values()), default=0)
+        task = progress.add_task("hashing", total=total_bytes)
+        for file in files.values():
+            name = file.rel_path.as_posix().ljust(max_len)
+            progress.update(task, description=f"hashing {name}")
+            _logger.debug("hashing %s", file.rel_path.as_posix())
+            file.load_digest()
+            progress.advance(task, file.size)
 
 
 def _change_sort_key(ch: PendingChange) -> tuple[int, str]:
