@@ -306,6 +306,15 @@ def _render_changes(changes: list[PendingChange]) -> None:
                     f"{ch.old.digest[:12]} -> {ch.new.digest[:12]}",
                 )
     console.print(table)
+    counts = {"add": 0, "edit": 0, "delete": 0, "move": 0}
+    for ch in changes:
+        counts[ch.change_type] += 1
+    console.print(
+        f"[green]add[/green]: {counts['add']}  "
+        f"[magenta]edit[/magenta]: {counts['edit']}  "
+        f"[red]delete[/red]: {counts['delete']}  "
+        f"[yellow]move[/yellow]: {counts['move']}"
+    )
 
 
 if __name__ == "__main__":
