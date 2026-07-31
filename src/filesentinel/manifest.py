@@ -238,8 +238,8 @@ class Manifest:
         """
         Map a digest to its leaf folder under the prefix tree.
 
-        The leaf folder name is the full digest, prefixed by `depth` levels of
-        2-char buckets (e.g. `tree/aa/bb/aabbccdd...`).
+        The leaf folder name is the full digest, prefixed by `depth` levels of 2-char
+        buckets (e.g. `tree/aa/bb/aabbccdd...`).
         """
         assert len(digest) >= TREE_DEPTH * 2
         parts = [digest[i * 2 : (i + 1) * 2] for i in range(TREE_DEPTH)]

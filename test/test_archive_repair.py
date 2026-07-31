@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from filekeeper import Archive
+from filesentinel import Archive
 
 from .conftest import needs_par2
 

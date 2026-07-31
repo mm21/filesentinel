@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from filekeeper import Archive, FileModel, Par2FileModel
-from filekeeper.manifest import Manifest
+from filesentinel import Archive, FileModel, Par2FileModel
+from filesentinel.manifest import Manifest
 
 
 def test_map_digest_layout(archive: Archive):

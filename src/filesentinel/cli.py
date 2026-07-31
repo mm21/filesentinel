@@ -65,7 +65,7 @@ def main(
     ),
 ):
     """
-    FileKeeper: File archiving utility
+    FileSentinel: File archiving utility
     """
     ctx.obj = {"manifest": manifest, "config": config}
 

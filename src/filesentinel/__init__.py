@@ -1,5 +1,5 @@
 """
-FileKeeper: A file archiving utility.
+FileSentinel: A file archiving utility.
 """
 
 from .archive import Archive, RepairReport

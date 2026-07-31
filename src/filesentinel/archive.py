@@ -33,7 +33,7 @@ from .utils import (
     sha256_file,
 )
 
-DEFAULT_MANIFEST_DIRNAME = ".filekeeper"
+DEFAULT_MANIFEST_DIRNAME = ".filesentinel"
 DEFAULT_CONFIG_FILENAME = "config.yaml"
 CHANGE_ORDER = {"add": 0, "delete": 1, "move": 2, "edit": 3}
 PAR2_CHANGE_ORDER = {"add": 0, "delete": 1, "edit": 2}
@@ -73,7 +73,7 @@ class Archive:
 
     Consists of:
 
-    - Root folder of archive files (a folder named `.filekeeper` is ignored).
+    - Root folder of archive files (a folder named `.filesentinel` is ignored).
     - Manifest folder, which holds `manifest.yaml` and the digest-keyed
       `tree/` of par2 redundancy data. May be placed outside the archive root.
     - Optional `config.yaml` (default location: inside the manifest folder).
@@ -218,8 +218,8 @@ class Archive:
         """
         Apply changes to the manifest.
 
-        If `par2` is true, also update par2 redundancy
-        data on disk for affected content digests.
+        If `par2` is true, also update par2 redundancy data on disk for affected content
+        digests.
         """
         self.__manifest.apply(changes)
         if not par2:
@@ -346,10 +346,10 @@ class Archive:
         """
         Rebuild par2 sets for every content digest touched by `changes`.
 
-        Picks any current manifest entry with the affected content digest as the
-        source for `par2 create`. Errors if the source file is missing or its
-        digest no longer matches (in which case the user data is suspect and
-        should go through `repair` first).
+        Picks any current manifest entry with the affected content digest as the source
+        for `par2 create`. Errors if the source file is missing or its digest no longer
+        matches (in which case the user data is suspect and should go through `repair`
+        first).
         """
         affected: set[str] = {ch.content_digest for ch in changes}
         digest_to_path = {fm.digest: fm.path for fm in self.__manifest.entries.values()}

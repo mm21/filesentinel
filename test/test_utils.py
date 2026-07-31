@@ -1,7 +1,7 @@
 import hashlib
 from pathlib import Path
 
-from filekeeper.utils import iter_par2_files, sha256_file
+from filesentinel.utils import iter_par2_files, sha256_file
 
 
 def test_sha256_file_matches_hashlib(tmp_path: Path):

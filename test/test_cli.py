@@ -2,8 +2,8 @@ from pathlib import Path
 
 from typer.testing import CliRunner
 
-from filekeeper import Archive
-from filekeeper.cli import app
+from filesentinel import Archive
+from filesentinel.cli import app
 
 from .conftest import needs_par2
 
@@ -14,7 +14,7 @@ def test_scan_apply_creates_no_par2_by_default(archive_root: Path):
     root = str(archive_root)
     r = runner.invoke(app, ["scan", root, "--apply", "-y"])
     assert r.exit_code == 0, r.output
-    assert (archive_root / ".filekeeper" / "manifest.yaml").exists()
+    assert (archive_root / ".filesentinel" / "manifest.yaml").exists()
 
     a = Archive(archive_root)
     assert a.manifest.par2_sets == {}
@@ -69,7 +69,7 @@ def test_e2e_corrupt_and_repair(archive_root: Path):
     # initial population with par2
     r = runner.invoke(app, ["scan", root, "--apply", "--par2", "-y"])
     assert r.exit_code == 0, r.output
-    assert (archive_root / ".filekeeper" / "manifest.yaml").exists()
+    assert (archive_root / ".filesentinel" / "manifest.yaml").exists()
 
     # clean scan
     r = runner.invoke(app, ["scan", root, "--verify", "--par2"])

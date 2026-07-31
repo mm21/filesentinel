@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from filekeeper import Archive
+from filesentinel import Archive
 
 PAR2_AVAILABLE = shutil.which("par2") is not None
 needs_par2 = pytest.mark.skipif(not PAR2_AVAILABLE, reason="par2 binary not available")

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import yaml
 
-from filekeeper import ConfigModel
+from filesentinel import ConfigModel
 
 
 def test_defaults_when_missing(tmp_path: Path):
