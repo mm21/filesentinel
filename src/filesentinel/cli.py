@@ -65,7 +65,7 @@ def main(
     ),
 ):
     """
-    FileSentinel: File archiving utility
+    FileSentinel: Integrity monitoring and repair toolkit for long-term file archives
     """
     ctx.obj = {"manifest": manifest, "config": config}
 

@@ -1,5 +1,5 @@
 """
-FileSentinel: A file archiving utility.
+FileSentinel: Integrity monitoring and repair toolkit for long-term file archives.
 """
 
 from .archive import Archive, RepairReport

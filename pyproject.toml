@@ -20,7 +20,7 @@ dependencies = [
   "rich>=13.0",
   "typer>=0.12"
 ]
-description = "File archiving utility"
+description = "Integrity monitoring and repair toolkit for long-term file archives"
 license = "MIT"
 license-files = ["LICENSE"]
 name = "filesentinel"

@@ -1,4 +1,5 @@
 __cache__
+__out__
 .claude
 .venv
 build
