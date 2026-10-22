@@ -203,10 +203,11 @@ def _filter_paths(rel: str, paths: list[str]) -> bool:
 
 
 def _format_size(n: int) -> str:
+    n_ = float(n)
     for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-        if n < 1024:
-            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
-        n /= 1024  # type: ignore[assignment]
+        if n_ < 1024:
+            return f"{n_:.1f} {unit}" if unit != "B" else f"{int(n_)} B"
+        n_ /= 1024
     return f"{n:.1f} PiB"
 
 

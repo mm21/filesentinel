@@ -41,7 +41,8 @@ homepage = "https://github.com/mm21/filesentinel"
 
 [dependency-groups]
 dev = [
-  "pyprojkit[all]>=0.6.0,<0.7.0"
+  "pyprojkit[all]>=0.6.0,<0.7.0",
+  "types-pyyaml>=6.0.12.20260906"
 ]
 
 [build-system]
