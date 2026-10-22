@@ -19,6 +19,10 @@ from .archive import Archive
 from .manifest import Par2Change, PendingChange
 from .utils import console
 
+__all__ = [
+    "app",
+]
+
 rich.traceback.install(show_locals=True)
 
 logging.basicConfig(

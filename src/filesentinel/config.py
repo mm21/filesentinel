@@ -10,6 +10,10 @@ from typing import Self
 import yaml
 from pydantic import BaseModel, Field
 
+__all__ = [
+    "ConfigModel",
+]
+
 
 class ConfigModel(BaseModel):
     """

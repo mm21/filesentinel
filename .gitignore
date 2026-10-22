@@ -1,6 +1,8 @@
+**/__pycache__
 __cache__
 __out__
-.claude
+.claude/settings.local.json
+.pytest_cache
 .venv
 build
 dist

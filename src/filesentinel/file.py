@@ -15,6 +15,10 @@ if TYPE_CHECKING:
     from .archive import Archive
     from .manifest import FileModel
 
+__all__ = [
+    "File",
+]
+
 
 class File:
     """

@@ -33,6 +33,11 @@ from .utils import (
     sha256_file,
 )
 
+__all__ = [
+    "RepairReport",
+    "Archive",
+]
+
 DEFAULT_MANIFEST_DIRNAME = ".filesentinel"
 DEFAULT_CONFIG_FILENAME = "config.yaml"
 CHANGE_ORDER = {"add": 0, "delete": 1, "move": 2, "edit": 3}

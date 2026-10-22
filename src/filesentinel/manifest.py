@@ -17,6 +17,17 @@ from .utils import sha256_file
 if TYPE_CHECKING:
     from .file import File
 
+__all__ = [
+    "ChangeType",
+    "Par2ChangeType",
+    "FileModel",
+    "Par2FileModel",
+    "Par2SetModel",
+    "ManifestModel",
+    "PendingChange",
+    "Par2Change",
+    "Manifest",
+]
 
 INDEX_FILENAME = "manifest.yaml"
 INDEX_SHA_FILENAME = f"{INDEX_FILENAME}.sha256"

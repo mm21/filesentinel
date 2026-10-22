@@ -12,6 +12,17 @@ from pathlib import Path
 
 from rich.console import Console
 
+__all__ = [
+    "PAR2_BASENAME",
+    "console",
+    "sha256_file",
+    "par2_create",
+    "par2_verify",
+    "par2_repair",
+    "rip_disk",
+    "iter_par2_files",
+]
+
 PAR2_BASENAME = "redundancy"
 """
 Basename used for the par2 set inside each tree leaf folder.
