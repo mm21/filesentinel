@@ -14,7 +14,7 @@ classifiers = [
   "Programming Language :: Python :: 3.14",  # pyprojkit-managed
   "Programming Language :: Python :: Implementation :: CPython",
   "Topic :: Software Development :: Libraries :: Python Modules",
-  "Typing :: Typed"
+  "Typing :: Typed"  # pyprojkit-managed
 ]
 dependencies = [
   "pydantic>=2.13.3",
@@ -41,7 +41,7 @@ homepage = "https://github.com/mm21/filesentinel"
 
 [dependency-groups]
 dev = [
-  "pyprojkit[all]>=0.6.0,<0.7.0",
+  "pyprojkit[all]>=0.8.1,<0.9.0",
   "types-pyyaml>=6.0.12.20260906"
 ]
 
@@ -88,7 +88,6 @@ quiet = true  # pyprojkit-managed
 
 [tool.mypy]
 check_untyped_defs = true  # pyprojkit-managed
-ignore_missing_imports = true  # pyprojkit-managed
 python_version = "3.12"  # pyprojkit-managed
 
 [tool.nox]
@@ -101,7 +100,7 @@ pythonVersion = "3.12"  # pyprojkit-managed
 [tool.pytest.ini_options]
 addopts = "--import-mode=importlib -s -v -rA"  # pyprojkit-managed
 cache_dir = "__cache__/pytest"  # pyprojkit-managed
-testpaths = "test"  # pyprojkit-managed
+testpaths = ["test"]  # pyprojkit-managed
 
 [tool.tomlsort]
 sort_first = [
